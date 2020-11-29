@@ -62,7 +62,7 @@ func (p *HTTPPool) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/octet-stream")
+	w.Header().Set("Content-Type", "text/html")
 	w.Write(view.ByteSlice())  // 输出值
 }
 

@@ -14,6 +14,9 @@ import (
 	"geecache"
 	"log"
 	"net/http"
+	"hash"
+	"hash/crc64"
+	"hash/fnv"
 )
 
 var db = map[string]string{
@@ -22,10 +25,24 @@ var db = map[string]string{
 	"Sam":  "567",
 }
 
+var f = geecache.Filter{
+	Bytes: make([]byte, 1000),
+	Hashes: []hash.Hash64{fnv.New64(), crc64.New( crc64.MakeTable(crc64.ISO))},
+}
+
+func bloomFilter() {
+	for k := range db {
+		f.Push([]byte(k))
+	}
+}
+
 func createGroup() *geecache.Group {   // 创建命名空间
 	return geecache.NewGroup("scores", 2<<10, geecache.GetterFunc(   // GetterFunc从后端获取值
 		func(key string) ([]byte, error) {
-			log.Println("[SlowDB] search key", key)
+			//log.Println("[SlowDB] search key", key)
+			if (!f.Exists([]byte(key))) {   // 布隆过滤器过滤
+				return nil, fmt.Errorf("%s bloom filtered", key)
+			}
 			if v, ok := db[key]; ok {
 				return []byte(v), nil
 			}
@@ -50,7 +67,7 @@ func startAPIServer(apiAddr string, gee *geecache.Group) {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 				return
 			}
-			w.Header().Set("Content-Type", "application/octet-stream")
+			w.Header().Set("Content-Type", "text/html")
 			w.Write(view.ByteSlice())
 
 		}))
@@ -77,6 +94,8 @@ func main() {
 	for _, v := range addrMap {
 		addrs = append(addrs, v)
 	}
+
+	bloomFilter()
 
 	gee := createGroup()
 	if api {
